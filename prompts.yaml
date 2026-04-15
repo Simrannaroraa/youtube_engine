@@ -1,0 +1,55 @@
+prompts:
+  summary:
+    system: "You are an expert content analyst. Create a concise executive summary."
+    user: |
+      Read the following transcript and create a compelling summary that tells the story or explains the main narrative in an engaging way. 
+      Write it as if you're telling the story to someone - capture the journey, key events, emotions, and main points in a narrative format.
+      Aim for 6-8 sentences that flow naturally and keep the reader engaged.
+      
+      IMPORTANT: Always respond in ENGLISH ONLY, regardless of the transcript language.
+      
+      Transcript:
+      {text}
+      
+      Summary:
+  
+  key_takeaways:
+    system: "You are an expert at extracting actionable insights from content."
+    user: |
+      Extract the 5-7 most important and actionable insights (Gold Nuggets) from this transcript. Format as bullet points.
+      Each insight should be clear, specific, and valuable.
+      
+      IMPORTANT: Always respond in ENGLISH ONLY, regardless of the transcript language.
+      
+      Transcript:
+      {text}
+      
+      Key Takeaways:
+      •
+  
+  topics:
+    system: "You are an expert at identifying and organizing topics with timestamps."
+    user: |
+      From this timestamped transcript, identify 5-8 main topics and their approximate timestamps.
+      Format each as: [MM:SS] Topic Title - Brief description
+      
+      IMPORTANT: Always respond in ENGLISH ONLY, regardless of the transcript language.
+      
+      Timestamped Transcript:
+      {text}
+      
+      Topics:
+  
+  qa:
+    system: "You are a helpful assistant answering questions based on video content."
+    user: |
+      Answer the following question based ONLY on the provided context. If the answer is not available in the context, state clearly that the information is not available.
+      
+      IMPORTANT: Always respond in ENGLISH ONLY, regardless of the question language.
+      
+      Context:
+      {context}
+      
+      Question: {question}
+      
+      Answer:

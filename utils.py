@@ -3,20 +3,25 @@ Utility functions for YouTube video analysis.
 Handles transcript extraction, LLM interactions, and data processing.
 """
 
-import json
 import os
 import re
-import subprocess
 import time
+import yaml
 from dotenv import load_dotenv
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from youtube_transcript_api import YouTubeTranscriptApi
 from groq import Groq
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from langchain_community.vectorstores import FAISS
 
 load_dotenv()
 
 groq_api_key = os.getenv("GROQ_API_KEY")
+
+# Load prompts from YAML
+with open("prompts.yaml", "r") as f:
+    PROMPTS = yaml.safe_load(f)["prompts"]
 
 # Cache for analysis results (video_id -> {summary, takeaways, topics, vector_store})
 _analysis_cache = {}
@@ -41,11 +46,6 @@ def get_video_id(url):
 
 
 def get_transcript(video_url):
-    """
-    Extracts transcript from a YouTube video URL.
-    Returns the transcript text or raises an exception.
-    Uses the YouTubeTranscriptApi with updated API calls.
-    """
     try:
         video_id = get_video_id(video_url)
         if not video_id:
@@ -85,29 +85,17 @@ def get_transcript(video_url):
             transcript_data = transcript.fetch()
             
         except Exception as e:
-            error_msg = str(e).lower()
-            
-            # Check for IP blocking
-            if "ipblocked" in error_msg or "your ip" in error_msg or "blocking requests" in error_msg:
-                print("⚠️  YouTube IP Block Detected")
-                print(f"Error: {e}")
-                raise Exception(f"YouTube has temporarily blocked your IP due to too many requests. Please wait 30-60 minutes and try again. Alternatively, use a VPN to change your IP address.")
-            
-            # If list/find fails, try direct fetch with broader language support
-            print(f"Transcript list method failed: {e}. Trying direct fetch with available languages...")
+            # If list/find fails, try direct fetch as fallback
+            print(f"Transcript list method failed: {e}. Trying direct fetch...")
             try:
                 time.sleep(2)
-                transcript_data = api.fetch(video_id, languages=['en', 'en-US', 'en-GB', 'hi'])
+                transcript_data = api.fetch(video_id, languages=['en', 'en-US', 'en-GB'])
             except Exception as e2:
-                if "ipblocked" in str(e2).lower():
-                    raise Exception(f"YouTube has temporarily blocked your IP. Please wait 30-60 minutes and try again.")
                 try:
                     time.sleep(2)
                     transcript_data = api.fetch(video_id)
                 except Exception as e3:
-                    if "ipblocked" in str(e3).lower():
-                        raise Exception(f"YouTube has temporarily blocked your IP. Please wait 30-60 minutes and try again.")
-                    raise
+                    raise Exception(f"Failed to fetch transcript: {e3}. Please ensure the video has captions available.")
         
         # Convert transcript snippets to list format and build text
         transcript_text = ""
@@ -182,8 +170,9 @@ class GroqLLM:
 
 
 def get_llm():
-    """Returns a configured Groq model with fallback support."""
-    validate_api_key()
+    """Returns a configured Groq model with fallback support for summarization."""
+    if not groq_api_key:
+        raise ValueError("Groq API Key not found. Please create a .env file with GROQ_API_KEY.")
     
     models_to_try = list_available_models()
     
@@ -191,26 +180,20 @@ def get_llm():
         try:
             llm = GroqLLM(model_name, temperature=0.3)
             test_response = llm.invoke("test")
-            print(f"✓ Using model: {model_name}")
+            print(f"✓ Using Groq model: {model_name}")
             return llm
         except Exception as model_error:
             print(f"✗ Model {model_name} failed: {model_error}")
             continue
     
-    raise Exception(
-        "⚠️  All Groq models are unavailable. Please check:\n"
-        "1. Your Groq API key is valid\n"
-        "2. Your internet connection is working\n"
-        "3. Visit https://console.groq.com for status updates"
-    )
+    raise Exception("All Groq models failed. Please check your API key and try again.")
 
 
 def generate_summary(text):
     """Generates a concise executive summary."""
     llm = get_llm()
     limited_text = text[:8000]
-    prompt_text = f"""Summarize this transcript in one paragraph. IMPORTANT: Always respond in ENGLISH ONLY, no matter what language the transcript is in.
-{limited_text}"""
+    prompt_text = PROMPTS["summary"]["user"].format(text=limited_text)
     response = llm.invoke(prompt_text)
     return response.content
 
@@ -219,8 +202,7 @@ def generate_key_takeaways(text):
     """Generates 5-7 key takeaways (Gold Nuggets)."""
     llm = get_llm()
     limited_text = text[:8000]
-    prompt_text = f"""List 5-7 key insights as bullet points. IMPORTANT: Always respond in ENGLISH ONLY, no matter what language the transcript is in.
-{limited_text}"""
+    prompt_text = PROMPTS["key_takeaways"]["user"].format(text=limited_text)
     response = llm.invoke(prompt_text)
     return response.content
 
@@ -238,18 +220,43 @@ def generate_topics(transcript_list):
     formatted_transcript = formatted_transcript[:6000]
     
     llm = get_llm()
-    prompt_text = f"""List 5-8 topics with timestamps (MM:SS - Title). IMPORTANT: Always respond in ENGLISH ONLY, no matter what language the transcript is in.
-{formatted_transcript}"""
+    prompt_text = PROMPTS["topics"]["user"].format(text=formatted_transcript)
     response = llm.invoke(prompt_text)
     return response.content
 
 
 def create_vector_db(text):
-    """Creates a mock text-based vector store for transcript retrieval."""
+    """Creates a FAISS vector store with Google embeddings for transcript retrieval."""
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
     chunks = text_splitter.split_text(text)
     
-    print(f"Using text-based retrieval for QA functionality.")
+    try:
+        if not gemini_api_key:
+            print("⚠️  Gemini API key not found. Using text-based retrieval instead.")
+            return create_text_vector_db(text)
+        
+        # Use Google Embeddings (models/embedding-001)
+        embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001", google_api_key=gemini_api_key)
+        
+        # Create documents
+        docs = [Document(page_content=chunk) for chunk in chunks]
+        
+        # Create FAISS vector store
+        vector_store = FAISS.from_documents(docs, embeddings)
+        print(f"✓ Created FAISS vector store with {len(chunks)} chunks using Google embeddings")
+        return vector_store
+    except Exception as e:
+        print(f"Warning: FAISS creation failed ({e}), falling back to text-based retrieval")
+        # Fallback to text-based retrieval if embeddings fail
+        return create_text_vector_db(text)
+
+
+def create_text_vector_db(text):
+    """Fallback: Creates a text-based vector store for transcript retrieval."""
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
+    chunks = text_splitter.split_text(text)
+    
+    print(f"Using text-based retrieval (fallback)")
     
     class SimpleTextVectorStore:
         def __init__(self, texts):
@@ -290,8 +297,8 @@ def create_vector_db(text):
 
 
 def get_qa_chain(vector_store):
-    """Returns a QA chain for the vector store."""
-    llm = get_llm()
+    """Returns a QA chain using Groq with FAISS vector store."""
+    llm = get_llm()  # Use Groq for Q&A
     retriever = vector_store.as_retriever()
     
     class QAChainWrapper:
@@ -303,17 +310,7 @@ def get_qa_chain(vector_store):
             docs = self.retriever.invoke({"question": question})
             context = "\n\n".join([doc.page_content for doc in docs]) if docs else "No relevant context found."
             
-            prompt_text = f"""You are a helpful assistant. Answer the question in depth  from the provided context. 
-If the answer is not in the provided context, just say "answer is not available in the context", don't provide the wrong answer.
-IMPORTANT: Always respond in English only, regardless of the language of the question.
-
-Context:
-{context}
-
-Question:
-{question}
-
-Answer (in English):"""
+            prompt_text = PROMPTS["qa"]["user"].format(context=context, question=question)
             
             result = self.llm.invoke(prompt_text)
             return result.content if hasattr(result, 'content') else str(result)
@@ -361,9 +358,3 @@ def analyze_in_parallel(video_url, transcript_text, transcript_list):
     }
     
     return summary, takeaways, topics, vector_store, False
-
-
-def clear_analysis_cache():
-    """Clears the analysis cache."""
-    global _analysis_cache
-    _analysis_cache = {}

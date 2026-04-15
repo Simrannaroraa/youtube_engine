@@ -1,5 +1,4 @@
 import streamlit as st
-from utils import *
 import utils
 import time
 
