@@ -1,7 +1,10 @@
 from fastapi import FastAPI, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import utils
+from utils import (
+    get_video_id, get_transcript, analyze_in_parallel, 
+    create_vector_db, get_qa_chain, _analysis_cache
+)
 import uuid
 import time
 import json
@@ -42,16 +45,16 @@ def analyze_video(req: AnalyzeRequest):
         session_id = str(uuid.uuid4())
         start_time = time.time()
         
-        video_id = utils.get_video_id(req.video_url)
+        video_id = get_video_id(req.video_url)
         if not video_id:
             raise HTTPException(status_code=400, detail="Invalid YouTube URL")
 
         # Extract transcript first
-        transcript_text, transcript_list = utils.get_transcript(req.video_url)
+        transcript_text, transcript_list = get_transcript(req.video_url)
         
         # Analyze
         analysis_start = time.time()
-        summary, takeaways, topics, vector_store, is_cached = utils.analyze_in_parallel(
+        summary, takeaways, topics, vector_store, is_cached = analyze_in_parallel(
             req.video_url, transcript_text, transcript_list
         )
         analysis_time = time.time() - analysis_start
@@ -149,25 +152,25 @@ def rename_chat(session_id: str, req: RenameRequest):
 @app.post("/api/qa")
 def ask_question(req: QARequest):
     try:
-        video_id = utils.get_video_id(req.video_url)
+        video_id = get_video_id(req.video_url)
         if not video_id:
              raise HTTPException(status_code=400, detail="Invalid YouTube URL")
 
         # Get vector store from cache or recreate it
         vector_store = None
-        if video_id in utils._analysis_cache:
-            vector_store = utils._analysis_cache[video_id].get("vector_store")
+        if video_id in _analysis_cache:
+            vector_store = _analysis_cache[video_id].get("vector_store")
         
         if not vector_store:
             # Recreate vector store if not in cache
-            transcript_text, _ = utils.get_transcript(req.video_url)
-            vector_store = utils.create_vector_db(transcript_text)
+            transcript_text, _ = get_transcript(req.video_url)
+            vector_store = create_vector_db(transcript_text)
             # Store in cache to avoid recreating
-            if video_id not in utils._analysis_cache:
-                utils._analysis_cache[video_id] = {}
-            utils._analysis_cache[video_id]["vector_store"] = vector_store
+            if video_id not in _analysis_cache:
+                _analysis_cache[video_id] = {}
+            _analysis_cache[video_id]["vector_store"] = vector_store
 
-        qa_chain = utils.get_qa_chain(vector_store)
+        qa_chain = get_qa_chain(vector_store)
         response = qa_chain.run(req.question)
 
         db.add_qa(req.session_id, req.question, response)
