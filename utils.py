@@ -1,12 +1,9 @@
-"""
-Utility functions for YouTube video analysis.
-Handles transcript extraction, LLM interactions, and data processing.
-"""
-
 import os
 import re
 import time
 import yaml
+import uuid
+from datetime import datetime
 from dotenv import load_dotenv
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -14,30 +11,30 @@ from youtube_transcript_api import YouTubeTranscriptApi
 from groq import Groq
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_community.vectorstores import FAISS
+from chat_database import ChatDatabase
 
 load_dotenv()
 
 groq_api_key = os.getenv("GROQ_API_KEY")
+gemini_api_key = os.getenv("GEMINI_API_KEY")
 
 # Load prompts from YAML
 with open("prompts.yaml", "r") as f:
     PROMPTS = yaml.safe_load(f)["prompts"]
+
+# Initialize database
+db = ChatDatabase()
 
 # Cache for analysis results (video_id -> {summary, takeaways, topics, vector_store})
 _analysis_cache = {}
 
 
 def validate_api_key():
-    """Validate that Groq API key is configured."""
     if not groq_api_key:
         raise ValueError("Groq API Key not found. Please create a .env file with GROQ_API_KEY.")
 
 
 def get_video_id(url):
-    """
-    Extracts the video ID from a YouTube URL.
-    Supports standard youtube.com and youtu.be links.
-    """
     regex = r"(?:v=|\/)([0-9A-Za-z_-]{11}).*"
     match = re.search(regex, url)
     if match:
@@ -51,64 +48,59 @@ def get_transcript(video_url):
         if not video_id:
             raise ValueError("Could not extract Video ID. Check URL.")
 
-        # Create an instance of YouTubeTranscriptApi
         api = YouTubeTranscriptApi()
-        
-        # List all available transcripts using instance method
         transcript_data = None
+        
+        # Try Method 1: Using fetch directly with language priority
         try:
-            transcript_list = api.list(video_id)
-            
-            # Priority: Manual English -> Auto English -> Any Available Language
-            transcript = None
+            transcript_data = api.get_transcript(
+                video_id,
+                languages=['en', 'en-US', 'en-GB']
+            )
+        except Exception as e:
+            print(f"English transcript not found, trying any available language...")
             try:
-                transcript = transcript_list.find_manually_created_transcript(['en'])
-            except:
+                # Try Method 2: Get any available transcript
+                transcript_data = api.get_transcript(video_id)
+            except Exception as e2:
+                print(f"Direct fetch failed: {e2}. Trying list method...")
                 try:
-                    transcript = transcript_list.find_generated_transcript(['en'])
-                except:
+                    # Try Method 3: Use list() with priority
+                    time.sleep(1)
+                    transcript_list = api.list(video_id)
+                    
+                    # Try to find English first
+                    transcript = None
                     try:
-                        transcript = transcript_list.find_generated_transcript(['en-US', 'en-GB'])
+                        transcript = transcript_list.find_manually_created_transcript(['en'])
                     except:
-                        # Get first available transcript (any language)
                         try:
-                            transcript = transcript_list.find_generated_transcript()
+                            transcript = transcript_list.find_generated_transcript(['en'])
                         except:
-                            # If no generated, try first available
+                            # Get first available
                             for t in transcript_list:
                                 transcript = t
                                 break
-            
-            if transcript is None:
-                raise Exception("No transcripts found for this video")
-            
-            transcript_data = transcript.fetch()
-            
-        except Exception as e:
-            # If list/find fails, try direct fetch as fallback
-            print(f"Transcript list method failed: {e}. Trying direct fetch...")
-            try:
-                time.sleep(2)
-                transcript_data = api.fetch(video_id, languages=['en', 'en-US', 'en-GB'])
-            except Exception as e2:
-                try:
-                    time.sleep(2)
-                    transcript_data = api.fetch(video_id)
+                    
+                    if transcript is None:
+                        raise Exception("No transcripts available")
+                    
+                    transcript_data = transcript.fetch()
                 except Exception as e3:
-                    raise Exception(f"Failed to fetch transcript: {e3}. Please ensure the video has captions available.")
+                    error_str = str(e3)
+                    if "429" in error_str or "Too Many Requests" in error_str:
+                        raise Exception("YouTube has temporarily blocked your IP. Please wait 24 hours or use a VPN.")
+                    raise Exception(f"Failed to fetch transcript: {e3}. Please ensure the video has captions enabled.")
         
-        # Convert transcript snippets to list format and build text
         transcript_text = ""
         transcript_list_formatted = []
         
         for snippet in transcript_data:
-            # Handle both dict and FetchedTranscriptSnippet object formats
             if isinstance(snippet, dict):
                 text = snippet.get("text", "")
                 start = snippet.get("start", 0)
                 duration = snippet.get("duration", 0)
             else:
-                # FetchedTranscriptSnippet object
                 text = getattr(snippet, "text", "")
                 start = getattr(snippet, "start", 0)
                 duration = getattr(snippet, "duration", 0)
@@ -121,34 +113,28 @@ def get_transcript(video_url):
             })
             
         return transcript_text, transcript_list_formatted
-        
+    
     except Exception as e:
-        error_msg = str(e)
-        if "blocked your ip" in error_msg.lower():
-            raise Exception(error_msg)
-        raise Exception(f"Failed to fetch transcript: {e}. Please ensure the video has captions available.")
-
+        raise Exception(f"An unexpected error occurred: {str(e)}")
 
 def list_available_models():
-    """Lists available Groq models."""
     validate_api_key()
     models = [
         "llama-3.3-70b-versatile",
-        "llama-3.2-90b-vision-preview",
-        "mixtral-8x7b-32768-0405"
+        "llama-3.1-70b-versatile", 
+        "mixtral-8x7b-32768",
+        "llama-3-70b-8192"
     ]
     return models
 
 
 class GroqLLM:
-    """Simple wrapper around Groq API compatible with LangChain interface."""
     def __init__(self, model_name, temperature=0.3):
         self.client = Groq(api_key=groq_api_key)
         self.model_name = model_name
         self.temperature = temperature
     
     def invoke(self, text):
-        """Invoke the model with text input."""
         try:
             if isinstance(text, dict):
                 text = text.get("text", "")
@@ -170,7 +156,6 @@ class GroqLLM:
 
 
 def get_llm():
-    """Returns a configured Groq model with fallback support for summarization."""
     if not groq_api_key:
         raise ValueError("Groq API Key not found. Please create a .env file with GROQ_API_KEY.")
     
@@ -190,7 +175,6 @@ def get_llm():
 
 
 def generate_summary(text):
-    """Generates a concise executive summary."""
     llm = get_llm()
     limited_text = text[:8000]
     prompt_text = PROMPTS["summary"]["user"].format(text=limited_text)
@@ -199,7 +183,6 @@ def generate_summary(text):
 
 
 def generate_key_takeaways(text):
-    """Generates 5-7 key takeaways (Gold Nuggets)."""
     llm = get_llm()
     limited_text = text[:8000]
     prompt_text = PROMPTS["key_takeaways"]["user"].format(text=limited_text)
@@ -208,7 +191,6 @@ def generate_key_takeaways(text):
 
 
 def generate_topics(transcript_list):
-    """Generates topic segmentation from the raw transcript list (with timestamps)."""
     formatted_transcript = ""
     for item in transcript_list[:150]:
         time_val = int(item['start'])
@@ -226,7 +208,6 @@ def generate_topics(transcript_list):
 
 
 def create_vector_db(text):
-    """Creates a FAISS vector store with Google embeddings for transcript retrieval."""
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
     chunks = text_splitter.split_text(text)
     
@@ -235,8 +216,8 @@ def create_vector_db(text):
             print("⚠️  Gemini API key not found. Using text-based retrieval instead.")
             return create_text_vector_db(text)
         
-        # Use Google Embeddings (models/embedding-001)
-        embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001", google_api_key=gemini_api_key)
+        # Use Google Embeddings (models/text-embedding-004)
+        embeddings = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004", google_api_key=gemini_api_key)
         
         # Create documents
         docs = [Document(page_content=chunk) for chunk in chunks]
@@ -252,7 +233,6 @@ def create_vector_db(text):
 
 
 def create_text_vector_db(text):
-    """Fallback: Creates a text-based vector store for transcript retrieval."""
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
     chunks = text_splitter.split_text(text)
     
@@ -270,7 +250,6 @@ def create_text_vector_db(text):
             self.texts = texts
         
         def invoke(self, query_dict):
-            """Retrieve relevant text chunks based on query."""
             if isinstance(query_dict, dict):
                 question = query_dict.get("question", "")
             else:
@@ -297,7 +276,6 @@ def create_text_vector_db(text):
 
 
 def get_qa_chain(vector_store):
-    """Returns a QA chain using Groq with FAISS vector store."""
     llm = get_llm()  # Use Groq for Q&A
     retriever = vector_store.as_retriever()
     
@@ -319,11 +297,7 @@ def get_qa_chain(vector_store):
 
 
 def analyze_in_parallel(video_url, transcript_text, transcript_list):
-    """
-    Executes all 4 analysis steps sequentially with delays to respect rate limits.
-    Uses caching to avoid re-analyzing the same video.
-    Returns: (summary, takeaways, topics, vector_store, is_cached)
-    """
+    
     video_id = get_video_id(video_url)
     
     # Check if cached

@@ -2,8 +2,8 @@ prompts:
   summary:
     system: "You are an expert content analyst. Create a concise executive summary."
     user: |
-      Read the following transcript and create a compelling summary that tells the story or explains the main narrative in an engaging way. 
-      Write it as if you're telling the story to someone - capture the journey, key events, emotions, and main points in a narrative format.
+      Read the following transcript and create a compelling summary that  explains the main narrative in an engaging way. 
+      Write it as if you- capture the journey, key events, emotions, and main points.
       Aim for 6-8 sentences that flow naturally and keep the reader engaged.
       
       IMPORTANT: Always respond in ENGLISH ONLY, regardless of the transcript language.
