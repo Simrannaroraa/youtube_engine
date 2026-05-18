@@ -41,66 +41,78 @@ def get_transcript_yt_dlp(video_id):
     import requests
     import json
     
-    ydl_opts = {
-        'skip_download': True,
-        'writesubtitles': True,
-        'quiet': True,
-        'no_warnings': True
-    }
-    
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(video_id, download=False)
+    try:
+        ydl_opts = {
+            'skip_download': True,
+            'writesubtitles': True,
+            'quiet': True,
+            'no_warnings': True,
+            'extractor_args': {
+                'youtube': {
+                    'client': ['ANDROID_MUSIC', 'ANDROID', 'IOS', 'WEB_CREATOR']
+                }
+            }
+        }
         
-    subs = info.get('subtitles', {})
-    if not subs:
-        subs = info.get('automatic_captions', {})
-    
-    # Prioritize english
-    target_langs = ['en', 'en-US', 'en-GB']
-    selected_lang = None
-    for lang in target_langs:
-        if lang in subs:
-            selected_lang = lang
-            break
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(video_id, download=False)
             
-    if not selected_lang and subs:
-        selected_lang = list(subs.keys())[0]
+        subs = info.get('subtitles', {})
+        if not subs:
+            subs = info.get('automatic_captions', {})
         
-    if not selected_lang:
-        raise Exception("This video does not have captions enabled. Please try a video with captions.")
-        
-    # Find json3 URL
-    sub_formats = subs[selected_lang]
-    json3_url = next((fmt['url'] for fmt in sub_formats if fmt['ext'] == 'json3'), None)
-    
-    if not json3_url:
-        raise Exception("Could not extract a readable transcript format.")
-        
-    response = requests.get(json3_url)
-    response.raise_for_status()
-    data = response.json()
-    
-    transcript_text = ""
-    transcript_list_formatted = []
-    
-    for event in data.get('events', []):
-        if 'segs' in event:
-            text = "".join(seg.get('utf8', '') for seg in event['segs'] if seg.get('utf8') != '\n').strip()
-            if text:
-                start_ms = event.get('tStartMs', 0)
-                duration_ms = event.get('dDurationMs', 0)
+        # Prioritize english
+        target_langs = ['en', 'en-US', 'en-GB']
+        selected_lang = None
+        for lang in target_langs:
+            if lang in subs:
+                selected_lang = lang
+                break
                 
-                transcript_text += " " + text
-                transcript_list_formatted.append({
-                    "text": text,
-                    "start": start_ms / 1000.0,
-                    "duration": duration_ms / 1000.0
-                })
-                
-    if not transcript_list_formatted:
-        raise Exception("Transcript was empty.")
+        if not selected_lang and subs:
+            selected_lang = list(subs.keys())[0]
+            
+        if not selected_lang:
+            raise Exception("This video does not have captions enabled. Please try a video with captions.")
+            
+        # Find json3 URL
+        sub_formats = subs[selected_lang]
+        json3_url = next((fmt['url'] for fmt in sub_formats if fmt['ext'] == 'json3'), None)
         
-    return transcript_text.strip(), transcript_list_formatted
+        if not json3_url:
+            raise Exception("Could not extract a readable transcript format.")
+            
+        response = requests.get(json3_url)
+        response.raise_for_status()
+        data = response.json()
+        
+        transcript_text = ""
+        transcript_list_formatted = []
+        
+        for event in data.get('events', []):
+            if 'segs' in event:
+                text = "".join(seg.get('utf8', '') for seg in event['segs'] if seg.get('utf8') != '\n').strip()
+                if text:
+                    start_ms = event.get('tStartMs', 0)
+                    duration_ms = event.get('dDurationMs', 0)
+                    
+                    transcript_text += " " + text
+                    transcript_list_formatted.append({
+                        "text": text,
+                        "start": start_ms / 1000.0,
+                        "duration": duration_ms / 1000.0
+                    })
+                    
+        if not transcript_list_formatted:
+            raise Exception("Transcript was empty.")
+            
+        return transcript_text.strip(), transcript_list_formatted
+    
+    except Exception as e:
+        error_msg = str(e)
+        if "bot" in error_msg.lower() or "sign in" in error_msg.lower():
+            raise Exception("YouTube's strict bot protection is currently blocking our cloud servers. Since this app is hosted on Render, YouTube occasionally blocks its IP. Please try again in a few hours, or run the app locally for guaranteed access!")
+        raise Exception(f"yt-dlp failed: {error_msg}")
 
 
 def get_transcript(video_url):
