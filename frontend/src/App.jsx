@@ -2,9 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import {
   Zap, CheckCircle, FileText, Clock, Sparkles,
-  MessageSquare, Send, X, MoreVertical, Trash2, Edit2
+  MessageSquare, Send, X, Trash2, Edit2, LogOut
 } from 'lucide-react';
 import * as api from './api';
+import { useAuth } from './AuthContext';
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
 const AUTHOR_NAME = "Simran";
@@ -381,20 +382,8 @@ function TypingIndicator() {
   );
 }
 
-// ─── RUNNING SCAN LINE ────────────────────────────────────────────────────────
-function ScanLine() {
-  return (
-    <div style={{
-      background: 'linear-gradient(90deg, transparent, var(--neon-cyan), transparent)',
-      opacity: 0.6,
-      animation: 'scan-line 6s linear infinite',
-      pointerEvents: 'none',
-    }} />
-  );
-}
-
 // ─── NAVBAR ───────────────────────────────────────────────────────────────────
-function Navbar({ onHistoryClick, onGetStarted }) {
+function Navbar({ onHistoryClick, onGetStarted, user, onSignIn, onSignOut }) {
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
     const h = () => setScrolled(window.scrollY > 20);
@@ -429,19 +418,44 @@ function Navbar({ onHistoryClick, onGetStarted }) {
       </div>
 
       {/* Nav items */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
-        <button onClick={onHistoryClick} style={{
-          background: 'none', border: 'none', fontFamily: 'var(--font-display)', fontSize: 10,
-          letterSpacing: '0.2em', color: 'var(--text-mid)', cursor: 'pointer', textTransform: 'uppercase', transition: 'color 0.2s'
-        }}
-          onMouseEnter={e => e.target.style.color = 'var(--neon-cyan)'}
-          onMouseLeave={e => e.target.style.color = 'var(--text-mid)'}
-        >
-          [ HISTORY ]
-        </button>
-        <button onClick={onGetStarted} className="cyber-btn">
-          <span>Initialize →</span>
-        </button>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+        {user && (
+          <button onClick={onHistoryClick} style={{
+            background: 'none', border: 'none', fontFamily: 'var(--font-display)', fontSize: 10,
+            letterSpacing: '0.2em', color: 'var(--text-mid)', cursor: 'pointer', textTransform: 'uppercase', transition: 'color 0.2s'
+          }}
+            onMouseEnter={e => e.target.style.color = 'var(--neon-cyan)'}
+            onMouseLeave={e => e.target.style.color = 'var(--text-mid)'}
+          >
+            [ HISTORY ]
+          </button>
+        )}
+
+        {user ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {user.photoURL && (
+              <img src={user.photoURL} alt="avatar"
+                style={{ width: 28, height: 28, borderRadius: '50%', border: '1px solid var(--border-cyan)' }} />
+            )}
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-mid)',
+              maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {user.displayName?.split(' ')[0] || user.email}
+            </span>
+            <button onClick={onSignOut} title="Sign out"
+              style={{ background: 'none', border: '1px solid rgba(0,245,255,0.2)', color: 'var(--text-dim)',
+                cursor: 'pointer', padding: '5px 8px', display: 'flex', alignItems: 'center',
+                borderRadius: 2, transition: 'all 0.2s' }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--neon-cyan)'; e.currentTarget.style.color = 'var(--neon-cyan)'; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(0,245,255,0.2)'; e.currentTarget.style.color = 'var(--text-dim)'; }}
+            >
+              <LogOut size={13} />
+            </button>
+          </div>
+        ) : (
+          <button onClick={onSignIn} className="cyber-btn">
+            <span>Sign In →</span>
+          </button>
+        )}
       </div>
     </nav>
   );
@@ -471,11 +485,7 @@ function Hero() {
       <div style={{ position: 'absolute', bottom: '20%', right: '5%', width: 500, height: 500, borderRadius: '50%',
         background: 'radial-gradient(circle, rgba(191,0,255,0.06) 0%, transparent 70%)', pointerEvents: 'none' }} />
 
-      {/* Corner accents */}
-      {[['topLeft','top:0,left:0,borderTop,borderLeft'], ['topRight','top:0,right:0,borderTop,borderRight'], 
-        ['botLeft','bottom:0,left:0,borderBottom,borderLeft'], ['botRight','bottom:0,right:0,borderBottom,borderRight']]
-        .map(([k, _]) => null)}
-      
+
       <div style={{ maxWidth: 800, width: '100%', textAlign: 'center', position: 'relative' }}>
         {/* Terminal line */}
         <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--neon-green)',
@@ -784,7 +794,7 @@ function ResultCard({ icon: Icon, label, color = 'var(--neon-cyan)', children, d
 }
 
 // ─── ANALYZER ─────────────────────────────────────────────────────────────────
-function Analyzer({ onChatsChange, loadedChat = null, onLoadedChatChange = null }) {
+function Analyzer({ onChatsChange, loadedChat = null, onLoadedChatChange = null, user, onSignIn }) {
   const [videoUrl, setVideoUrl] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [hasResults, setHasResults] = useState(false);
@@ -847,7 +857,34 @@ function Analyzer({ onChatsChange, loadedChat = null, onLoadedChatChange = null 
           </p>
         </div>
 
-        {/* Input */}
+        {/* Auth gate — shown when not signed in */}
+        {!user && (
+          <div style={{
+            marginTop: 8, border: '1px solid var(--border-cyan)',
+            background: 'rgba(0,245,255,0.03)', padding: '40px 32px',
+            textAlign: 'center', animation: 'fadeSlideUp 0.4s ease both',
+          }}>
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ width: 48, height: 48, border: '2px solid var(--neon-cyan)', borderRadius: '50%',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px',
+                boxShadow: '0 0 20px rgba(0,245,255,0.2)' }}>
+                <Zap size={22} color="var(--neon-cyan)" />
+              </div>
+              <p style={{ fontFamily: 'var(--font-display)', fontSize: 13, color: 'var(--neon-cyan)',
+                letterSpacing: '0.15em', margin: '0 0 8px' }}>ACCESS REQUIRED</p>
+              <p style={{ fontFamily: 'var(--font-body)', color: 'var(--text-dim)', fontSize: 14,
+                lineHeight: 1.7, margin: 0 }}>
+                Sign in or create an account to analyze videos and save your session history.
+              </p>
+            </div>
+            <button onClick={onSignIn} className="cyber-btn">
+              <span>⚡ Sign In / Sign Up</span>
+            </button>
+          </div>
+        )}
+
+        {/* Input — shown only when signed in */}
+        {user && (
         <div style={{ display: 'flex', gap: 2, position: 'relative' }}>
           <div style={{ flex: 1, position: 'relative' }}>
             <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)',
@@ -873,7 +910,9 @@ function Analyzer({ onChatsChange, loadedChat = null, onLoadedChatChange = null 
           </button>
         </div>
 
-        {/* Error */}
+        )}
+
+        {/* Error — only shown when signed in */}
         {error && (
           <div style={{ marginTop: 12, background: 'rgba(255,0,110,0.12)', border: '1px solid rgba(255,0,110,0.5)',
             padding: '14px 16px', fontFamily: 'var(--font-mono)', color: '#ff6b9d', fontSize: 13, lineHeight: 1.6,
@@ -1029,7 +1068,6 @@ function HistorySidebar({ open, onClose, chats, onChatsChange, onChatSelect }) {
   const [sessions, setSessions] = useState([]);
   const [renamingId, setRenamingId] = useState(null);
   const [renameValue, setRenameValue] = useState('');
-  const [openMenuId, setOpenMenuId] = useState(null);
 
   useEffect(() => {
     if (chats && chats.length) {
@@ -1166,29 +1204,268 @@ function HistorySidebar({ open, onClose, chats, onChatsChange, onChatSelect }) {
   );
 }
 
+// ─── AUTH MODAL ───────────────────────────────────────────────────────────────
+function AuthModal({ onClose }) {
+  const { signInWithEmail, signUpWithEmail } = useAuth();
+  const [tab, setTab] = useState('login'); // 'login' | 'signup'
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      if (tab === 'login') {
+        await signInWithEmail(email, password);
+      } else {
+        if (!name.trim()) { setError('Please enter your name.'); setLoading(false); return; }
+        await signUpWithEmail(email, password, name.trim());
+      }
+      onClose();
+    } catch (err) {
+      const map = {
+        'auth/user-not-found': 'No account found with this email.',
+        'auth/wrong-password': 'Incorrect password.',
+        'auth/email-already-in-use': 'An account with this email already exists.',
+        'auth/weak-password': 'Password must be at least 6 characters.',
+        'auth/invalid-email': 'Please enter a valid email address.',
+        'auth/invalid-credential': 'Invalid email or password.',
+      };
+      setError(map[err.code] || err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const inputStyle = {
+    width: '100%', background: 'rgba(0,245,255,0.04)',
+    border: '1px solid rgba(0,245,255,0.25)', color: 'var(--text-white)',
+    fontFamily: 'var(--font-body)', fontSize: 14, padding: '11px 14px',
+    outline: 'none', transition: 'border-color 0.2s, box-shadow 0.2s',
+    borderRadius: 2,
+  };
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 200,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)',
+      animation: 'fadeSlideUp 0.25s ease both',
+      padding: '24px',
+    }} onClick={onClose}>
+      <div onClick={e => e.stopPropagation()} style={{
+        width: '100%', maxWidth: 420,
+        background: 'var(--dark-1)',
+        border: '1px solid var(--border-cyan-hot)',
+        boxShadow: '0 0 60px rgba(0,245,255,0.12), 0 0 120px rgba(0,245,255,0.04)',
+        animation: 'fadeSlideUp 0.3s ease both',
+        position: 'relative',
+      }}>
+        {/* Corner accents */}
+        {[
+          { top: -2, left: -2, borderTop: '2px solid var(--neon-cyan)', borderLeft: '2px solid var(--neon-cyan)' },
+          { top: -2, right: -2, borderTop: '2px solid var(--neon-cyan)', borderRight: '2px solid var(--neon-cyan)' },
+          { bottom: -2, left: -2, borderBottom: '2px solid var(--neon-cyan)', borderLeft: '2px solid var(--neon-cyan)' },
+          { bottom: -2, right: -2, borderBottom: '2px solid var(--neon-cyan)', borderRight: '2px solid var(--neon-cyan)' },
+        ].map((s, i) => (
+          <div key={i} style={{ position: 'absolute', width: 14, height: 14, ...s }} />
+        ))}
+
+        {/* Header */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '18px 24px', borderBottom: '1px solid rgba(0,245,255,0.12)',
+          background: 'rgba(0,245,255,0.03)',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--neon-cyan)',
+              boxShadow: '0 0 8px var(--neon-cyan)', animation: 'corner-pulse 1.5s ease-in-out infinite' }} />
+            <span style={{ fontFamily: 'var(--font-display)', fontSize: 11, fontWeight: 600,
+              color: 'var(--neon-cyan)', letterSpacing: '0.2em' }}>
+              {tab === 'login' ? 'AUTHENTICATE' : 'CREATE ACCOUNT'}
+            </span>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer',
+            color: 'var(--text-dim)', padding: 4, transition: 'color 0.2s', display: 'flex' }}
+            onMouseEnter={e => e.currentTarget.style.color = 'var(--neon-cyan)'}
+            onMouseLeave={e => e.currentTarget.style.color = 'var(--text-dim)'}>
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Tab switcher */}
+        <div style={{ display: 'flex', borderBottom: '1px solid rgba(0,245,255,0.12)' }}>
+          {['login', 'signup'].map(t => (
+            <button key={t} onClick={() => { setTab(t); setError(''); }} style={{
+              flex: 1, padding: '12px 0',
+              background: tab === t ? 'rgba(0,245,255,0.07)' : 'transparent',
+              border: 'none', borderBottom: tab === t ? '2px solid var(--neon-cyan)' : '2px solid transparent',
+              color: tab === t ? 'var(--neon-cyan)' : 'var(--text-dim)',
+              fontFamily: 'var(--font-display)', fontSize: 10, letterSpacing: '0.2em',
+              cursor: 'pointer', transition: 'all 0.2s', textTransform: 'uppercase',
+            }}>
+              {t === 'login' ? '[ LOG IN ]' : '[ SIGN UP ]'}
+            </button>
+          ))}
+        </div>
+
+        {/* Form */}
+        <form onSubmit={handleSubmit} style={{ padding: '28px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {tab === 'signup' && (
+            <div>
+              <label style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-dim)',
+                letterSpacing: '0.15em', display: 'block', marginBottom: 6 }}>NAME</label>
+              <input
+                id="auth-name"
+                type="text"
+                placeholder="Your name"
+                value={name}
+                onChange={e => setName(e.target.value)}
+                style={inputStyle}
+                onFocus={e => { e.target.style.borderColor = 'var(--neon-cyan)'; e.target.style.boxShadow = '0 0 12px rgba(0,245,255,0.15)'; }}
+                onBlur={e => { e.target.style.borderColor = 'rgba(0,245,255,0.25)'; e.target.style.boxShadow = 'none'; }}
+                autoComplete="name"
+              />
+            </div>
+          )}
+
+          <div>
+            <label style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-dim)',
+              letterSpacing: '0.15em', display: 'block', marginBottom: 6 }}>EMAIL</label>
+            <input
+              id="auth-email"
+              type="email"
+              placeholder="you@example.com"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              style={inputStyle}
+              onFocus={e => { e.target.style.borderColor = 'var(--neon-cyan)'; e.target.style.boxShadow = '0 0 12px rgba(0,245,255,0.15)'; }}
+              onBlur={e => { e.target.style.borderColor = 'rgba(0,245,255,0.25)'; e.target.style.boxShadow = 'none'; }}
+              required
+              autoComplete="email"
+            />
+          </div>
+
+          <div>
+            <label style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-dim)',
+              letterSpacing: '0.15em', display: 'block', marginBottom: 6 }}>PASSWORD</label>
+            <input
+              id="auth-password"
+              type="password"
+              placeholder={tab === 'signup' ? 'At least 6 characters' : '••••••••'}
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              style={inputStyle}
+              onFocus={e => { e.target.style.borderColor = 'var(--neon-cyan)'; e.target.style.boxShadow = '0 0 12px rgba(0,245,255,0.15)'; }}
+              onBlur={e => { e.target.style.borderColor = 'rgba(0,245,255,0.25)'; e.target.style.boxShadow = 'none'; }}
+              required
+              autoComplete={tab === 'login' ? 'current-password' : 'new-password'}
+            />
+          </div>
+
+          {error && (
+            <div style={{
+              background: 'rgba(255,0,110,0.10)', border: '1px solid rgba(255,0,110,0.4)',
+              padding: '10px 14px', fontFamily: 'var(--font-mono)', fontSize: 12,
+              color: '#ff6b9d', letterSpacing: '0.04em', lineHeight: 1.5,
+            }}>
+              ⚠ {error}
+            </div>
+          )}
+
+          <button
+            id="auth-submit-btn"
+            type="submit"
+            disabled={loading}
+            className="cyber-btn"
+            style={{ width: '100%', opacity: loading ? 0.6 : 1, cursor: loading ? 'not-allowed' : 'pointer' }}
+          >
+            <span>
+              {loading
+                ? '⏳ PROCESSING...'
+                : tab === 'login' ? '⚡ LOG IN' : '⚡ CREATE ACCOUNT'}
+            </span>
+          </button>
+
+          <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-dim)',
+            textAlign: 'center', letterSpacing: '0.06em', margin: 0 }}>
+            {tab === 'login' ? (
+              <>No account?{' '}
+                <span onClick={() => { setTab('signup'); setError(''); }}
+                  style={{ color: 'var(--neon-cyan)', cursor: 'pointer', textDecoration: 'underline' }}>
+                  Create one →
+                </span>
+              </>
+            ) : (
+              <>Already have one?{' '}
+                <span onClick={() => { setTab('login'); setError(''); }}
+                  style={{ color: 'var(--neon-cyan)', cursor: 'pointer', textDecoration: 'underline' }}>
+                  Log in →
+                </span>
+              </>
+            )}
+          </p>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 // ─── ROOT ─────────────────────────────────────────────────────────────────────
+
 export default function App() {
+  const { user, loading, signOut } = useAuth();
+  const [showAuthModal, setShowAuthModal] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [chats, setChats] = useState([]);
   const [loadedChat, setLoadedChat] = useState(null);
 
   const loadChats = async () => { try { setChats(await api.getChats()); } catch {} };
-  useEffect(() => { loadChats(); }, []);
+  useEffect(() => { if (user) loadChats(); else setChats([]); }, [user]);
 
   const scrollToAnalyzer = () => document.getElementById('analyzer')?.scrollIntoView({ behavior: 'smooth' });
+
+  if (loading) return (
+    <div style={{ minHeight: '100vh', background: 'var(--dark-0)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ width: 32, height: 32, border: '2px solid rgba(0,245,255,0.2)',
+        borderTopColor: 'var(--neon-cyan)', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
+    </div>
+  );
 
   return (
     <div className="scanlines" style={{ background: 'var(--dark-0)', minHeight: '100vh', color: 'white', overflowX: 'hidden' }}>
       <style>{GLOBAL_CSS}</style>
-      <ScanLine />
-      <Navbar onHistoryClick={() => setShowHistory(true)} onGetStarted={scrollToAnalyzer} />
+      <Navbar
+        onHistoryClick={() => setShowHistory(true)}
+        onGetStarted={scrollToAnalyzer}
+        user={user}
+        onSignIn={() => setShowAuthModal(true)}
+        onSignOut={signOut}
+      />
       <Hero />
       <MarqueeStrip />
       <Features />
-      <Analyzer onChatsChange={loadChats} loadedChat={loadedChat} onLoadedChatChange={setLoadedChat} />
+      <Analyzer
+        onChatsChange={loadChats}
+        loadedChat={loadedChat}
+        onLoadedChatChange={setLoadedChat}
+        user={user}
+        onSignIn={() => setShowAuthModal(true)}
+      />
       <About />
       <Footer />
-      <HistorySidebar open={showHistory} onClose={() => setShowHistory(false)} chats={chats} onChatsChange={loadChats} onChatSelect={setLoadedChat} />
+      <HistorySidebar
+        open={showHistory}
+        onClose={() => setShowHistory(false)}
+        chats={chats}
+        onChatsChange={loadChats}
+        onChatSelect={setLoadedChat}
+      />
+      {showAuthModal && <AuthModal onClose={() => setShowAuthModal(false)} />}
     </div>
   );
 }

@@ -15,7 +15,7 @@ class ChatDatabase:
         self.init_db()
     
     def init_db(self):
-        """Create tables if they don't exist"""
+        """Create tables if they don't exist, and migrate existing DBs"""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
@@ -23,6 +23,7 @@ class ChatDatabase:
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS chats (
                 session_id TEXT PRIMARY KEY,
+                user_id TEXT,
                 video_id TEXT,
                 video_url TEXT,
                 chat_name TEXT,
@@ -46,12 +47,19 @@ class ChatDatabase:
             )
         ''')
         
+        # Migration: add user_id column if upgrading from a pre-auth database
+        try:
+            cursor.execute('ALTER TABLE chats ADD COLUMN user_id TEXT')
+            print('✓ Migrated chats table: added user_id column')
+        except Exception:
+            pass  # Column already exists — expected on fresh starts
+        
         conn.commit()
         conn.close()
     
-    def save_chat(self, session_id, video_id, video_url, chat_name, 
+    def save_chat(self, session_id, user_id, video_id, video_url, chat_name,
                   summary, takeaways, topics, analysis_time):
-        """Save a new chat session"""
+        """Save a new chat session scoped to a user"""
         try:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
@@ -62,9 +70,9 @@ class ChatDatabase:
             
             cursor.execute('''
                 INSERT OR REPLACE INTO chats 
-                (session_id, video_id, video_url, chat_name, created_at, summary, takeaways, topics, analysis_time)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (session_id, video_id, video_url, chat_name, 
+                (session_id, user_id, video_id, video_url, chat_name, created_at, summary, takeaways, topics, analysis_time)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (session_id, user_id, video_id, video_url, chat_name,
                   datetime.now().isoformat(), summary, takeaways_json, topics_json, analysis_time))
             
             conn.commit()
@@ -92,8 +100,8 @@ class ChatDatabase:
             print(f"Error adding Q&A: {e}")
             return False
     
-    def get_all_chats(self):
-        """Retrieve all saved chats ordered by creation date (newest first)"""
+    def get_all_chats(self, user_id):
+        """Retrieve all chats for a specific user, newest first"""
         try:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
@@ -102,8 +110,9 @@ class ChatDatabase:
                 SELECT session_id, video_id, video_url, chat_name, created_at, 
                        summary, takeaways, topics, analysis_time 
                 FROM chats 
+                WHERE user_id = ?
                 ORDER BY created_at DESC
-            ''')
+            ''', (user_id,))
             chats = cursor.fetchall()
             
             conn.close()
@@ -152,14 +161,14 @@ class ChatDatabase:
             print(f"Error retrieving Q&A: {e}")
             return []
     
-    def delete_chat(self, session_id):
-        """Delete a chat and all its Q&A history"""
+    def delete_chat(self, session_id, user_id):
+        """Delete a chat belonging to a specific user"""
         try:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
             
             cursor.execute('DELETE FROM qa_history WHERE session_id = ?', (session_id,))
-            cursor.execute('DELETE FROM chats WHERE session_id = ?', (session_id,))
+            cursor.execute('DELETE FROM chats WHERE session_id = ? AND user_id = ?', (session_id, user_id))
             
             conn.commit()
             conn.close()
@@ -168,8 +177,8 @@ class ChatDatabase:
             print(f"Error deleting chat: {e}")
             return False
     
-    def rename_chat(self, session_id, new_name):
-        """Rename a chat"""
+    def rename_chat(self, session_id, new_name, user_id):
+        """Rename a chat belonging to a specific user"""
         try:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
@@ -177,8 +186,8 @@ class ChatDatabase:
             cursor.execute('''
                 UPDATE chats 
                 SET chat_name = ? 
-                WHERE session_id = ?
-            ''', (new_name, session_id))
+                WHERE session_id = ? AND user_id = ?
+            ''', (new_name, session_id, user_id))
             
             conn.commit()
             conn.close()
@@ -187,55 +196,3 @@ class ChatDatabase:
             print(f"Error renaming chat: {e}")
             return False
     
-    def chat_exists(self, session_id):
-        """Check if a chat session exists"""
-        try:
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
-            
-            cursor.execute('SELECT 1 FROM chats WHERE session_id = ?', (session_id,))
-            exists = cursor.fetchone() is not None
-            
-            conn.close()
-            return exists
-        except Exception as e:
-            print(f"Error checking chat existence: {e}")
-            return False
-    
-    def export_chat_as_json(self, session_id):
-        """Export a chat session as JSON"""
-        try:
-            chat = self.get_chat_by_id(session_id)
-            qa_list = self.get_chat_qa(session_id)
-            
-            if not chat:
-                return None
-            
-            # Parse JSON strings back to lists
-            takeaways = json.loads(chat[6]) if chat[6] else []
-            topics = json.loads(chat[7]) if chat[7] else []
-            
-            export_data = {
-                "session_id": chat[0],
-                "video_id": chat[1],
-                "video_url": chat[2],
-                "chat_name": chat[3],
-                "created_at": chat[4],
-                "summary": chat[5],
-                "takeaways": takeaways,
-                "topics": topics,
-                "analysis_time": chat[8],
-                "qa_history": [
-                    {
-                        "question": qa[0],
-                        "answer": qa[1],
-                        "timestamp": qa[2]
-                    }
-                    for qa in qa_list
-                ]
-            }
-            
-            return export_data
-        except Exception as e:
-            print(f"Error exporting chat: {e}")
-            return None

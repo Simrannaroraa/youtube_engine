@@ -11,27 +11,21 @@ from youtube_transcript_api import YouTubeTranscriptApi
 from groq import Groq
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_community.vectorstores import FAISS
-from chat_database import ChatDatabase
-
 load_dotenv()
 
 groq_api_key = os.getenv("GROQ_API_KEY")
 gemini_api_key = os.getenv("GEMINI_API_KEY")
 
 # Load prompts from YAML
-with open("prompts.yaml", "r") as f:
+_yaml_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "prompts.yaml")
+with open(_yaml_path, "r") as f:
     PROMPTS = yaml.safe_load(f)["prompts"]
-
-# Initialize database
-db = ChatDatabase()
 
 # Cache for analysis results (video_id -> {summary, takeaways, topics, vector_store})
 _analysis_cache = {}
 
-
-def validate_api_key():
-    if not groq_api_key:
-        raise ValueError("Groq API Key not found. Please create a .env file with GROQ_API_KEY.")
+# Cached LLM instance — initialized once on first call, reused for every request
+_llm_instance = None
 
 
 def get_video_id(url):
@@ -122,15 +116,7 @@ def get_transcript(video_url):
     except Exception as e:
         raise Exception(f"An unexpected error occurred: {str(e)}")
 
-def list_available_models():
-    validate_api_key()
-    models = [
-        "llama-3.3-70b-versatile",
-        "llama-3.1-70b-versatile", 
-        "mixtral-8x7b-32768",
-        "llama-3-70b-8192"
-    ]
-    return models
+
 
 
 class GroqLLM:
@@ -161,17 +147,27 @@ class GroqLLM:
 
 
 def get_llm():
+    global _llm_instance
+    if _llm_instance is not None:
+        return _llm_instance
+
     if not groq_api_key:
         raise ValueError("Groq API Key not found. Please create a .env file with GROQ_API_KEY.")
     
-    models_to_try = list_available_models()
+    models_to_try = [
+        "llama-3.3-70b-versatile",
+        "llama-3.1-70b-versatile",
+        "mixtral-8x7b-32768",
+        "llama-3-70b-8192"
+    ]
     
     for model_name in models_to_try:
         try:
             llm = GroqLLM(model_name, temperature=0.3)
-            test_response = llm.invoke("test")
+            llm.invoke("test")  # Validate model is accessible — runs ONCE at startup
             print(f"✓ Using Groq model: {model_name}")
-            return llm
+            _llm_instance = llm
+            return _llm_instance
         except Exception as model_error:
             print(f"✗ Model {model_name} failed: {model_error}")
             continue

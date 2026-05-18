@@ -1,22 +1,30 @@
-from fastapi import FastAPI, HTTPException, Body
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from utils import (
-    get_video_id, get_transcript, analyze_in_parallel, 
+    get_video_id, get_transcript, analyze_in_parallel,
     create_vector_db, get_qa_chain, _analysis_cache
 )
 import uuid
 import time
-import json
 from datetime import datetime
 from chat_database import ChatDatabase
+from auth import get_current_uid
 
 app = FastAPI(title="YT Insight Engine API")
 
-# Setup CORS
+# Setup CORS — set ALLOWED_ORIGINS env var on Render to your Vercel URL
+# e.g. ALLOWED_ORIGINS=https://your-app.vercel.app,https://custom-domain.com
+_raw_origins = os.getenv("ALLOWED_ORIGINS", "")
+_allowed_origins = [o.strip() for o in _raw_origins.split(",") if o.strip()] or ["*"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for development
+    allow_origins=_allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -24,7 +32,8 @@ app.add_middleware(
 
 db = ChatDatabase()
 
-# Request Models
+# ─── Request Models ────────────────────────────────────────────────────────────
+
 class AnalyzeRequest(BaseModel):
     video_url: str
 
@@ -36,34 +45,32 @@ class QARequest(BaseModel):
     video_url: str
     question: str
 
+# ─── Routes ───────────────────────────────────────────────────────────────────
+
 @app.post("/api/analyze")
-def analyze_video(req: AnalyzeRequest):
+def analyze_video(req: AnalyzeRequest, uid: str = Depends(get_current_uid)):
     if not req.video_url:
         raise HTTPException(status_code=400, detail="Video URL is required")
-    
+
     try:
         session_id = str(uuid.uuid4())
         start_time = time.time()
-        
+
         video_id = get_video_id(req.video_url)
         if not video_id:
             raise HTTPException(status_code=400, detail="Invalid YouTube URL")
 
-        # Extract transcript first
         transcript_text, transcript_list = get_transcript(req.video_url)
-        
-        # Analyze
-        analysis_start = time.time()
+
         summary, takeaways, topics, vector_store, is_cached = analyze_in_parallel(
             req.video_url, transcript_text, transcript_list
         )
-        analysis_time = time.time() - analysis_start
         total_time = time.time() - start_time
 
-        # Save to DB
         chat_name = f"Analysis - {datetime.now().strftime('%b %d, %H:%M')}"
         db.save_chat(
             session_id=session_id,
+            user_id=uid,
             video_id=video_id,
             video_url=req.video_url,
             chat_name=chat_name,
@@ -90,9 +97,10 @@ def analyze_video(req: AnalyzeRequest):
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @app.get("/api/chats")
-def get_all_chats():
-    chats = db.get_all_chats()
+def get_all_chats(uid: str = Depends(get_current_uid)):
+    chats = db.get_all_chats(uid)
     result = []
     for chat in chats:
         session_id, video_id, video_url, chat_name, created_at, summary, takeaways, topics, analysis_time = chat
@@ -105,16 +113,14 @@ def get_all_chats():
         })
     return result
 
+
 @app.get("/api/chats/{session_id}")
-def get_chat(session_id: str):
+def get_chat(session_id: str, uid: str = Depends(get_current_uid)):
     chat = db.get_chat_by_id(session_id)
     if not chat:
         raise HTTPException(status_code=404, detail="Chat not found")
-    
+
     session_id, video_id, video_url, chat_name, created_at, summary, takeaways, topics, analysis_time = chat
-    
-    takeaways_parsed = takeaways if takeaways else ""
-    topics_parsed = topics if topics else ""
 
     qa_list = db.get_chat_qa(session_id)
     messages = []
@@ -129,43 +135,43 @@ def get_chat(session_id: str):
         "chat_name": chat_name,
         "created_at": created_at,
         "summary": summary,
-        "takeaways": takeaways_parsed,
-        "topics": topics_parsed,
+        "takeaways": takeaways if takeaways else "",
+        "topics": topics if topics else "",
         "analysis_time": analysis_time,
         "messages": messages
     }
 
+
 @app.delete("/api/chats/{session_id}")
-def delete_chat(session_id: str):
-    success = db.delete_chat(session_id)
+def delete_chat(session_id: str, uid: str = Depends(get_current_uid)):
+    success = db.delete_chat(session_id, uid)
     if not success:
         raise HTTPException(status_code=500, detail="Failed to delete chat")
     return {"status": "success"}
 
+
 @app.put("/api/chats/{session_id}/rename")
-def rename_chat(session_id: str, req: RenameRequest):
-    success = db.rename_chat(session_id, req.new_name)
+def rename_chat(session_id: str, req: RenameRequest, uid: str = Depends(get_current_uid)):
+    success = db.rename_chat(session_id, req.new_name, uid)
     if not success:
         raise HTTPException(status_code=500, detail="Failed to rename chat")
     return {"status": "success", "new_name": req.new_name}
 
+
 @app.post("/api/qa")
-def ask_question(req: QARequest):
+def ask_question(req: QARequest, uid: str = Depends(get_current_uid)):
     try:
         video_id = get_video_id(req.video_url)
         if not video_id:
-             raise HTTPException(status_code=400, detail="Invalid YouTube URL")
+            raise HTTPException(status_code=400, detail="Invalid YouTube URL")
 
-        # Get vector store from cache or recreate it
         vector_store = None
         if video_id in _analysis_cache:
             vector_store = _analysis_cache[video_id].get("vector_store")
-        
+
         if not vector_store:
-            # Recreate vector store if not in cache
             transcript_text, _ = get_transcript(req.video_url)
             vector_store = create_vector_db(transcript_text)
-            # Store in cache to avoid recreating
             if video_id not in _analysis_cache:
                 _analysis_cache[video_id] = {}
             _analysis_cache[video_id]["vector_store"] = vector_store
@@ -178,5 +184,3 @@ def ask_question(req: QARequest):
         return {"answer": response}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-if __name__ == "__main__":
-    main()
