@@ -38,4 +38,5 @@ async def get_current_uid(authorization: str = Header(None)) -> str:
     except auth.InvalidIdTokenError:
         raise HTTPException(status_code=401, detail="Invalid authentication token.")
     except Exception as e:
-        raise HTTPException(status_code=401, detail="Authentication failed.")
+        print(f"Auth error: {str(e)}")
+        raise HTTPException(status_code=401, detail=f"Authentication failed: {str(e)}")
