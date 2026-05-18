@@ -36,134 +36,66 @@ def get_video_id(url):
     return None
 
 
-def get_transcript_yt_dlp(video_id):
-    import yt_dlp
-    import requests
-    import json
-    
+def get_transcript(video_url):
     try:
-        ydl_opts = {
-            'skip_download': True,
-            'writesubtitles': True,
-            'quiet': True,
-            'no_warnings': True,
-            'extractor_args': {
-                'youtube': {
-                    'client': ['ANDROID_MUSIC', 'ANDROID', 'IOS', 'WEB_CREATOR']
-                }
-            }
-        }
-        
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(video_id, download=False)
-            
-        subs = info.get('subtitles', {})
-        if not subs:
-            subs = info.get('automatic_captions', {})
-        
-        # Prioritize english
-        target_langs = ['en', 'en-US', 'en-GB']
-        selected_lang = None
-        for lang in target_langs:
-            if lang in subs:
-                selected_lang = lang
-                break
-                
-        if not selected_lang and subs:
-            selected_lang = list(subs.keys())[0]
-            
-        if not selected_lang:
-            raise Exception("This video does not have captions enabled. Please try a video with captions.")
-            
-        # Find json3 URL
-        sub_formats = subs[selected_lang]
-        json3_url = next((fmt['url'] for fmt in sub_formats if fmt['ext'] == 'json3'), None)
-        
-        if not json3_url:
-            raise Exception("Could not extract a readable transcript format.")
-            
-        response = requests.get(json3_url)
-        response.raise_for_status()
-        data = response.json()
-        
+        video_id = get_video_id(video_url)
+        if not video_id:
+            raise ValueError("Could not extract Video ID. Check URL.")
+
+        api = YouTubeTranscriptApi()
+
+        # List available transcripts
+        transcript_list = api.list(video_id)
+
+        # Try to find English first (manual, then auto-generated), then any language
+        transcript = None
+        try:
+            transcript = transcript_list.find_manually_created_transcript(['en', 'en-US', 'en-GB'])
+        except Exception:
+            try:
+                transcript = transcript_list.find_generated_transcript(['en', 'en-US', 'en-GB'])
+            except Exception:
+                # Fall back to any available transcript
+                for t in transcript_list:
+                    transcript = t
+                    break
+
+        if transcript is None:
+            raise Exception("This video does not have captions/subtitles. Please try another video that has captions enabled.")
+
+        fetched = transcript.fetch()
+
         transcript_text = ""
         transcript_list_formatted = []
-        
-        for event in data.get('events', []):
-            if 'segs' in event:
-                text = "".join(seg.get('utf8', '') for seg in event['segs'] if seg.get('utf8') != '\n').strip()
-                if text:
-                    start_ms = event.get('tStartMs', 0)
-                    duration_ms = event.get('dDurationMs', 0)
-                    
-                    transcript_text += " " + text
-                    transcript_list_formatted.append({
-                        "text": text,
-                        "start": start_ms / 1000.0,
-                        "duration": duration_ms / 1000.0
-                    })
-                    
-        if not transcript_list_formatted:
-            raise Exception("Transcript was empty.")
-            
-        return transcript_text.strip(), transcript_list_formatted
-    
-    except Exception as e:
-        error_msg = str(e)
-        if "bot" in error_msg.lower() or "sign in" in error_msg.lower():
-            raise Exception("YouTube's strict bot protection is currently blocking our cloud servers. Since this app is hosted on Render, YouTube occasionally blocks its IP. Please try again in a few hours, or run the app locally for guaranteed access!")
-        raise Exception(f"yt-dlp failed: {error_msg}")
 
-
-def get_transcript(video_url):
-    video_id = get_video_id(video_url)
-    if not video_id:
-        raise ValueError("Could not extract Video ID. Check URL.")
-
-    # Primary method: youtube-transcript-api
-    try:
-        api = YouTubeTranscriptApi()
-        try:
-            transcript_list = api.list(video_id)
-            transcript = None
-            try:
-                transcript = transcript_list.find_manually_created_transcript(['en'])
-            except:
-                try:
-                    transcript = transcript_list.find_generated_transcript(['en'])
-                except:
-                    for t in transcript_list:
-                        transcript = t
-                        break
-            
-            if transcript is None:
-                raise Exception("No transcripts available")
-            
-            transcript_data = transcript.fetch()
-            
-            transcript_text = ""
-            transcript_list_formatted = []
-            
-            for snippet in transcript_data:
+        for snippet in fetched:
+            # Support both dict (old API) and object (new API) styles
+            if isinstance(snippet, dict):
                 text = snippet.get("text", "")
                 start = snippet.get("start", 0)
                 duration = snippet.get("duration", 0)
-                
-                transcript_text += " " + text
-                transcript_list_formatted.append({
-                    "text": text,
-                    "start": start,
-                    "duration": duration
-                })
-            return transcript_text, transcript_list_formatted
-            
-        except Exception as api_err:
-            print(f"youtube-transcript-api failed: {api_err}. Falling back to yt-dlp...")
-            # Fallback to yt-dlp
-            return get_transcript_yt_dlp(video_id)
-            
+            else:
+                text = getattr(snippet, "text", "")
+                start = getattr(snippet, "start", 0)
+                duration = getattr(snippet, "duration", 0)
+
+            transcript_text += " " + text
+            transcript_list_formatted.append({
+                "text": text,
+                "start": start,
+                "duration": duration
+            })
+
+        return transcript_text.strip(), transcript_list_formatted
+
     except Exception as e:
-        raise Exception(f"An unexpected error occurred: {str(e)}")
+        error_str = str(e)
+        # Surface friendly messages for known errors
+        if "429" in error_str or "Too Many Requests" in error_str:
+            raise Exception("YouTube is temporarily rate-limiting this server. Please wait a few minutes and try again.")
+        if "disabled" in error_str.lower() or "no transcript" in error_str.lower():
+            raise Exception("This video does not have captions enabled. YouTube Transcript API requires videos to have captions/subtitles. Please try another video that has captions enabled.")
+        raise Exception(f"An unexpected error occurred: {error_str}")
 
 
 
