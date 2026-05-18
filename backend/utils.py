@@ -103,11 +103,15 @@ def get_transcript(video_url):
 
     except Exception as e:
         error_str = str(e)
+        # Log full error for debugging
+        print(f"[get_transcript error] {error_str}")
         # Surface friendly messages for known errors
+        if "IpBlocked" in error_str or ("blocked" in error_str.lower() and "ip" in error_str.lower()):
+            raise Exception(f"YouTube IP block detected. Proxy active: {bool(os.getenv('WEBSHARE_PROXY_USERNAME'))}. Raw error: {error_str}")
         if "429" in error_str or "Too Many Requests" in error_str:
-            raise Exception("YouTube is temporarily rate-limiting this server. Please wait a few minutes and try again.")
+            raise Exception(f"YouTube rate-limit. Proxy active: {bool(os.getenv('WEBSHARE_PROXY_USERNAME'))}. Raw error: {error_str}")
         if "disabled" in error_str.lower() or "no transcript" in error_str.lower():
-            raise Exception("This video does not have captions enabled. YouTube Transcript API requires videos to have captions/subtitles. Please try another video that has captions enabled.")
+            raise Exception("This video does not have captions enabled. Please try another video that has captions enabled.")
         raise Exception(f"An unexpected error occurred: {error_str}")
 
 
