@@ -25,9 +25,7 @@ def _ensure_initialized():
                     firebase_admin.initialize_app(cred)
                 except Exception as e:
                     print(f"Error loading service account from env: {e}")
-                    # Fallback to projectId only
-                    project_id = os.getenv("FIREBASE_PROJECT_ID", "yt-insight-engine")
-                    firebase_admin.initialize_app(options={"projectId": project_id})
+                    raise ValueError(f"Failed to parse FIREBASE_SERVICE_ACCOUNT JSON: {e}")
             else:
                 project_id = os.getenv("FIREBASE_PROJECT_ID", "yt-insight-engine")
                 firebase_admin.initialize_app(options={"projectId": project_id})
