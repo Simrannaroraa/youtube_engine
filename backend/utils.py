@@ -90,6 +90,11 @@ def get_transcript(video_url):
                     error_str = str(e3)
                     if "429" in error_str or "Too Many Requests" in error_str:
                         raise Exception("YouTube has temporarily blocked your IP. Please wait 24 hours or use a VPN.")
+                    
+                    # More helpful error message for caption issues
+                    if "Could not retrieve a transcript" in error_str or "disabled" in error_str.lower():
+                        raise Exception("This video does not have captions enabled. YouTube Transcript API requires videos to have captions/subtitles. Please try another video that has captions enabled.")
+                    
                     raise Exception(f"Failed to fetch transcript: {e3}. Please ensure the video has captions enabled.")
         
         transcript_text = ""

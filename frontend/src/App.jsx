@@ -875,9 +875,18 @@ function Analyzer({ onChatsChange, loadedChat = null, onLoadedChatChange = null 
 
         {/* Error */}
         {error && (
-          <div style={{ marginTop: 12, background: 'rgba(255,0,110,0.08)', border: '1px solid rgba(255,0,110,0.3)',
-            padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#ff6b9d', fontSize: 13 }}>
-            ⚠ ERROR: {error}
+          <div style={{ marginTop: 12, background: 'rgba(255,0,110,0.12)', border: '1px solid rgba(255,0,110,0.5)',
+            padding: '14px 16px', fontFamily: 'var(--font-mono)', color: '#ff6b9d', fontSize: 13, lineHeight: 1.6,
+            borderRadius: '4px', animation: 'fadeSlideUp 0.3s ease both' }}>
+            <div style={{ fontWeight: 600, marginBottom: 6, fontSize: 12, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+              ⚠ ERROR
+            </div>
+            <div>{error}</div>
+            {error.includes('captions') && (
+              <div style={{ marginTop: 8, fontSize: 12, color: 'rgba(255,107,157,0.8)', fontStyle: 'italic' }}>
+                💡 Tip: Try a video from major creators (TED, educational channels, etc.) - they usually have captions.
+              </div>
+            )}
           </div>
         )}
 
