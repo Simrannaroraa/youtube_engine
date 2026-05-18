@@ -14,8 +14,23 @@ def _ensure_initialized():
         try:
             firebase_admin.get_app()
         except ValueError:
-            project_id = os.getenv("FIREBASE_PROJECT_ID", "yt-insight-engine")
-            firebase_admin.initialize_app(options={"projectId": project_id})
+            # First try to load from a full service account JSON string in env var
+            sa_json = os.getenv("FIREBASE_SERVICE_ACCOUNT")
+            if sa_json:
+                import json
+                try:
+                    cred_dict = json.loads(sa_json)
+                    from firebase_admin import credentials
+                    cred = credentials.Certificate(cred_dict)
+                    firebase_admin.initialize_app(cred)
+                except Exception as e:
+                    print(f"Error loading service account from env: {e}")
+                    # Fallback to projectId only
+                    project_id = os.getenv("FIREBASE_PROJECT_ID", "yt-insight-engine")
+                    firebase_admin.initialize_app(options={"projectId": project_id})
+            else:
+                project_id = os.getenv("FIREBASE_PROJECT_ID", "yt-insight-engine")
+                firebase_admin.initialize_app(options={"projectId": project_id})
         _firebase_initialized = True
 
 
