@@ -13,3 +13,5 @@ services:
       - key: ALLOWED_ORIGINS
         sync: false          # Set to your Vercel URL after frontend deploy
                              # e.g. https://your-app.vercel.app
+      - key: PYTHON_VERSION
+        value: 3.10.13
