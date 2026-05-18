@@ -992,13 +992,11 @@ function Analyzer({ onChatsChange, loadedChat = null, onLoadedChatChange = null,
 
 // ─── ABOUT ────────────────────────────────────────────────────────────────────
 function About() {
-  const stack = ['React', 'FastAPI', 'Python', 'LangChain', 'Gemini 2.5 Flash', 'text-embedding-004', 'FAISS', 'YouTubeTranscriptApi'];
+  const stack = ['React', 'FastAPI', 'Python', 'LangChain', 'Gemini 2.5 Flash', 'text-embedding-004', 'FAISS', 'YouTubeTranscriptApi', 'Groq'];
   const rows = [
-    ['PROJECT', 'YT Insight Engine'],
-    ['VERSION', PROJECT_VERSION],
-    ['AUTHOR', AUTHOR_NAME],
-    ['LICENSE', 'MIT'],
-    ['REPO', <a key="gh" href={GITHUB_URL}>View on GitHub →</a>],
+    ['PROJECT', 'YT Insight Engine by Simran'],
+    ['SEMESTER', '4th'],
+    ['REPO', <a key="gh" href="https://github.com/Simrannaroraa/youtube_engine" target="_blank" rel="noopener noreferrer">View on GitHub →</a>],
   ];
 
   return (
