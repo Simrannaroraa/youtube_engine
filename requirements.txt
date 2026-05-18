@@ -9,6 +9,6 @@ langchain-google-genai==0.0.5
 langchain-community==0.0.10
 groq==0.4.1
 faiss-cpu
-pyyaml==6.0
+pyyaml>=6.0.1
 uvicorn[standard]==0.27.1
 firebase-admin==6.5.0
