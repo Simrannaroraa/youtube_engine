@@ -12,3 +12,4 @@ faiss-cpu
 pyyaml
 uvicorn[standard]
 firebase-admin
+yt-dlp
