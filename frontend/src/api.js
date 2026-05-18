@@ -8,6 +8,7 @@ const authHeaders = async () => {
   const token = user ? await user.getIdToken() : null;
   return {
     'Content-Type': 'application/json',
+    'ngrok-skip-browser-warning': 'true',
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
 };
