@@ -20,15 +20,21 @@ app = FastAPI(title="YT Insight Engine API")
 # Setup CORS — set ALLOWED_ORIGINS env var on Render to your Vercel URL
 # e.g. ALLOWED_ORIGINS=https://your-app.vercel.app,https://custom-domain.com
 _raw_origins = os.getenv("ALLOWED_ORIGINS", "")
-_allowed_origins = [o.strip() for o in _raw_origins.split(",") if o.strip()] or ["*"]
+_allowed_origins = [o.strip() for o in _raw_origins.split(",") if o.strip()]
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=_allowed_origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+cors_kwargs = {
+    "allow_credentials": True,
+    "allow_methods": ["*"],
+    "allow_headers": ["*"],
+}
+
+if _allowed_origins:
+    cors_kwargs["allow_origins"] = _allowed_origins
+else:
+    # Safely allow all origins with credentials using regex
+    cors_kwargs["allow_origin_regex"] = r".*"
+
+app.add_middleware(CORSMiddleware, **cors_kwargs)
 
 db = ChatDatabase()
 
