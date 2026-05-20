@@ -399,7 +399,7 @@ function Navbar({ onHistoryClick, onGetStarted, user, onSignIn, onSignOut }) {
       padding: '0 32px',
       background: scrolled ? 'var(--nav-bg-scrolled)' : 'var(--nav-bg)',
       backdropFilter: 'blur(12px)',
-      borderBottom: `1px solid ${scrolled ? 'rgba(0,245,255,0.3)' : 'rgba(0,245,255,0.1)'}`,
+      borderBottom: `1px solid ${scrolled ? 'var(--border-cyan-hot)' : 'var(--border-cyan)'}`,
       transition: 'all 0.3s',
     }}>
       {/* Logo */}
@@ -497,7 +497,7 @@ function Hero() {
         <h1 style={{ position: 'relative', marginBottom: 8 }}>
           <span className="glitch-text" data-text="TURN ANY VIDEO"
             style={{ display: 'block', fontFamily: 'var(--font-display)', fontWeight: 900,
-              fontSize: 'clamp(36px,7vw,80px)', lineHeight: 1.1, color: 'var(--text-bright)',
+              fontSize: 'clamp(36px,7vw,80px)', lineHeight: 1.1, color: 'white',
               textShadow: '0 0 40px rgba(0,245,255,0.3)', animation: 'fadeSlideUp 0.5s 0.2s both',
               letterSpacing: '0.04em' }}>
             TURN ANY VIDEO
@@ -528,7 +528,7 @@ function Hero() {
 
         <div style={{ display: 'flex', gap: 24, justifyContent: 'center', marginTop: 32,
           animation: 'fadeSlideUp 0.5s 0.6s both' }}>
-          {['NO LOGIN REQUIRED', 'FREE TO USE', 'INSTANT RESULTS'].map(t => (
+          {['FREE TO USE', 'INSTANT RESULTS'].map(t => (
             <span key={t} style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-dim)', letterSpacing: '0.15em' }}>
               ◆ {t}
             </span>
