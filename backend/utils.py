@@ -42,20 +42,8 @@ def get_transcript(video_url):
         if not video_id:
             raise ValueError("Could not extract Video ID. Check URL.")
 
-        # Use Webshare proxy if credentials are configured (required on cloud hosting)
-        proxy_username = os.getenv("WEBSHARE_PROXY_USERNAME")
-        proxy_password = os.getenv("WEBSHARE_PROXY_PASSWORD")
-
-        if proxy_username and proxy_password:
-            from youtube_transcript_api.proxies import WebshareProxyConfig
-            api = YouTubeTranscriptApi(
-                proxy_config=WebshareProxyConfig(
-                    proxy_username=proxy_username,
-                    proxy_password=proxy_password,
-                )
-            )
-        else:
-            api = YouTubeTranscriptApi()
+        # Directly instantiate YouTubeTranscriptApi without proxy configuration
+        api = YouTubeTranscriptApi()
 
         # List available transcripts
         transcript_list = api.list(video_id)

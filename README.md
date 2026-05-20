@@ -56,10 +56,7 @@ GROQ_API_KEY=your_groq_api_key
 GEMINI_API_KEY=your_gemini_api_key
 ALLOWED_ORIGINS=http://localhost:5173
 FIREBASE_PROJECT_ID=yt-insight-engine
-# Optional: Proxy for YouTube API
-# WEBSHARE_PROXY_USERNAME=...
-# WEBSHARE_PROXY_PASSWORD=...
-```
+
 
 Run the backend:
 ```bash
