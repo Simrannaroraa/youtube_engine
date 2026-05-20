@@ -33,29 +33,29 @@ function parseTopics(raw) {
   return results;
 }
 
-// ─── GLOBAL STYLES ────────────────────────────────────────────────────────────
+// ─── GLOBAL STYLES ────────────────────────────────────────────────
 const GLOBAL_CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;600;700;900&family=Rajdhani:wght@300;400;500;600;700&display=swap');
-
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  
   :root {
-    --neon-cyan: #00f5ff;
-    --neon-purple: #bf00ff;
-    --neon-pink: #ff006e;
-    --neon-green: #39ff14;
-    --neon-yellow: #ffee00;
-    --dark-0: #020408;
-    --dark-1: #060d15;
-    --dark-2: #0a1628;
-    --dark-3: #0f2040;
-    --grid-color: rgba(0, 245, 255, 0.04);
-    --border-cyan: rgba(0, 245, 255, 0.25);
-    --border-cyan-hot: rgba(0, 245, 255, 0.7);
-    --text-dim: rgba(0, 245, 255, 0.45);
-    --text-mid: rgba(0, 245, 255, 0.7);
-    --text-bright: rgba(0, 245, 255, 0.95);
-    --text-white: #e8f4ff;
+    --neon-cyan: #0077b6;
+    --neon-purple: #7209b7;
+    --neon-pink: #d90429;
+    --neon-green: #2b9348;
+    --neon-yellow: #e65f00;
+    --dark-0: #fbf5f2;
+    --dark-1: #f4e8e3;
+    --dark-2: rgba(255, 250, 248, 0.85);
+    --dark-3: #e8d7d0;
+    --grid-color: rgba(0, 119, 182, 0.05);
+    --border-cyan: rgba(0, 119, 182, 0.16);
+    --border-cyan-hot: rgba(0, 119, 182, 0.55);
+    --text-dim: rgba(15, 30, 54, 0.58);
+    --text-mid: rgba(15, 30, 54, 0.76);
+    --text-bright: #0c1e36;
+    --text-white: #0c1e36;
+    --nav-bg: rgba(251, 245, 242, 0.75);
+    --nav-bg-scrolled: rgba(251, 245, 242, 0.95);
+    --btn-hover-text: #ffffff;
+    --input-area-bg: rgba(255, 255, 255, 0.6);
     --font-display: 'Orbitron', monospace;
     --font-mono: 'Share Tech Mono', monospace;
     --font-body: 'Rajdhani', sans-serif;
@@ -86,8 +86,8 @@ const GLOBAL_CSS = `
       0deg,
       transparent,
       transparent 2px,
-      rgba(0,0,0,0.08) 2px,
-      rgba(0,0,0,0.08) 4px
+      rgba(0,0,0,0.02) 2px,
+      rgba(0,0,0,0.02) 4px
     );
     pointer-events: none;
     z-index: 9999;
@@ -133,8 +133,8 @@ const GLOBAL_CSS = `
 
   @keyframes spin { to { transform: rotate(360deg); } }
   @keyframes pulse-border {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(0,245,255,0.4), inset 0 0 20px rgba(0,245,255,0.05); }
-    50%       { box-shadow: 0 0 20px 4px rgba(0,245,255,0.15), inset 0 0 30px rgba(0,245,255,0.1); }
+    0%, 100% { box-shadow: 0 0 0 0 rgba(0,119,182,0.2), inset 0 0 20px rgba(0,119,182,0.02); }
+    50%       { box-shadow: 0 0 20px 4px rgba(0,119,182,0.08), inset 0 0 30px rgba(0,119,182,0.04); }
   }
   @keyframes fadeSlideUp {
     from { opacity: 0; transform: translateY(20px); }
@@ -170,6 +170,8 @@ const GLOBAL_CSS = `
     border: 1px solid var(--border-cyan);
     border-radius: 0;
     position: relative;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
     transition: border-color 0.3s, box-shadow 0.3s;
     clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 16px 100%, 0 calc(100% - 16px));
   }
@@ -177,12 +179,12 @@ const GLOBAL_CSS = `
     content: '';
     position: absolute;
     inset: 0;
-    background: linear-gradient(135deg, rgba(0,245,255,0.04) 0%, transparent 50%);
+    background: linear-gradient(135deg, rgba(0,119,182,0.02) 0%, transparent 50%);
     pointer-events: none;
   }
   .cyber-card:hover {
     border-color: var(--border-cyan-hot);
-    box-shadow: 0 0 30px rgba(0,245,255,0.08), inset 0 0 30px rgba(0,245,255,0.03);
+    box-shadow: 0 0 30px rgba(0,119,182,0.06), inset 0 0 30px rgba(0,119,182,0.02);
   }
 
   /* Corner decorators */
@@ -222,7 +224,7 @@ const GLOBAL_CSS = `
     transition: transform 0.25s ease;
   }
   .cyber-btn:hover::before { transform: translateX(0); }
-  .cyber-btn:hover { color: var(--dark-0); box-shadow: 0 0 24px rgba(0,245,255,0.5); }
+  .cyber-btn:hover { color: var(--btn-hover-text); box-shadow: 0 0 24px rgba(0,119,182,0.3); }
   .cyber-btn:disabled { opacity: 0.35; cursor: not-allowed; }
   .cyber-btn:disabled::before { display: none; }
   .cyber-btn span { position: relative; z-index: 1; }
@@ -234,8 +236,8 @@ const GLOBAL_CSS = `
     letter-spacing: 0.15em;
     text-transform: uppercase;
     border: 1px solid var(--neon-purple);
-    background: rgba(191,0,255,0.15);
-    color: #e090ff;
+    background: rgba(114,9,183,0.1);
+    color: var(--neon-purple);
     padding: 10px 28px;
     cursor: pointer;
     position: relative;
@@ -244,13 +246,13 @@ const GLOBAL_CSS = `
     clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px));
   }
   .cyber-btn-solid:hover {
-    background: rgba(191,0,255,0.3);
-    box-shadow: 0 0 24px rgba(191,0,255,0.4);
+    background: var(--neon-purple);
+    box-shadow: 0 0 24px rgba(114,9,183,0.3);
     color: white;
   }
 
   .cyber-input {
-    background: rgba(0,245,255,0.03);
+    background: rgba(0,119,182,0.03);
     border: 1px solid var(--border-cyan);
     color: var(--text-white);
     font-family: var(--font-mono);
@@ -264,7 +266,7 @@ const GLOBAL_CSS = `
   .cyber-input::placeholder { color: var(--text-dim); }
   .cyber-input:focus {
     border-color: var(--neon-cyan);
-    box-shadow: 0 0 16px rgba(0,245,255,0.15), inset 0 0 16px rgba(0,245,255,0.03);
+    box-shadow: 0 0 16px rgba(0,119,182,0.1), inset 0 0 16px rgba(0,119,182,0.02);
   }
 
   .section-label {
@@ -277,7 +279,6 @@ const GLOBAL_CSS = `
     animation: neon-flicker 5s infinite;
   }
 
- 
   /* Marquee */
   @keyframes marquee {
     from { transform: translateX(0); }
@@ -294,9 +295,9 @@ const GLOBAL_CSS = `
     font-family: var(--font-mono);
     font-size: 11px;
     padding: 3px 10px;
-    border: 1px solid rgba(0,245,255,0.3);
+    border: 1px solid rgba(0,119,182,0.2);
     color: var(--text-mid);
-    background: rgba(0,245,255,0.05);
+    background: rgba(0,119,182,0.04);
     letter-spacing: 0.05em;
   }
 
@@ -396,7 +397,7 @@ function Navbar({ onHistoryClick, onGetStarted, user, onSignIn, onSignOut }) {
       position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100,
       height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       padding: '0 32px',
-      background: scrolled ? 'rgba(2,4,8,0.95)' : 'rgba(2,4,8,0.7)',
+      background: scrolled ? 'var(--nav-bg-scrolled)' : 'var(--nav-bg)',
       backdropFilter: 'blur(12px)',
       borderBottom: `1px solid ${scrolled ? 'rgba(0,245,255,0.3)' : 'rgba(0,245,255,0.1)'}`,
       transition: 'all 0.3s',
@@ -411,9 +412,8 @@ function Navbar({ onHistoryClick, onGetStarted, user, onSignIn, onSignOut }) {
         <div>
           <span style={{ fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 700, color: 'var(--neon-cyan)',
             letterSpacing: '0.15em', textShadow: '0 0 16px var(--neon-cyan)' }}>
-            YT.INSIGHT
+            YT ENGINE
           </span>
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-dim)', marginLeft: 6 }}>ENGINE</span>
         </div>
       </div>
 
@@ -497,7 +497,7 @@ function Hero() {
         <h1 style={{ position: 'relative', marginBottom: 8 }}>
           <span className="glitch-text" data-text="TURN ANY VIDEO"
             style={{ display: 'block', fontFamily: 'var(--font-display)', fontWeight: 900,
-              fontSize: 'clamp(36px,7vw,80px)', lineHeight: 1.1, color: 'white',
+              fontSize: 'clamp(36px,7vw,80px)', lineHeight: 1.1, color: 'var(--text-bright)',
               textShadow: '0 0 40px rgba(0,245,255,0.3)', animation: 'fadeSlideUp 0.5s 0.2s both',
               letterSpacing: '0.04em' }}>
             TURN ANY VIDEO
@@ -577,7 +577,7 @@ function Features() {
         <div style={{ textAlign: 'center', marginBottom: 56 }}>
           <p className="section-label" style={{ marginBottom: 12 }}>◆ CAPABILITIES ◆</p>
           <h2 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 'clamp(24px,4vw,40px)',
-            color: 'white', letterSpacing: '0.05em' }}>
+            color: 'var(--text-bright)', letterSpacing: '0.05em' }}>
             FOUR TOOLS.&nbsp;
             <span style={{ color: 'var(--neon-cyan)', textShadow: '0 0 20px var(--neon-cyan)' }}>ONE ENGINE.</span>
           </h2>
@@ -608,7 +608,7 @@ function Features() {
                 </div>
                 <div>
                   <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: `${color}99` }}>{num}</span>
-                  <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 600, color: 'white',
+                  <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 600, color: '#000000',
                     letterSpacing: '0.1em', margin: '2px 0 0' }}>
                     {title}
                   </h3>
@@ -713,7 +713,7 @@ function Chatbot({ sessionId, videoUrl, initialMessages = null }) {
 
       {/* Input */}
       <div style={{ display: 'flex', gap: 0, padding: '12px 16px', borderTop: '1px solid var(--border-cyan)',
-        background: 'rgba(0,0,0,0.3)' }}>
+        background: 'var(--input-area-bg)' }}>
         <div style={{ position: 'relative', flex: 1 }}>
           <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)',
             fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--neon-cyan)' }}>{'> '}</span>
@@ -737,7 +737,7 @@ function Chatbot({ sessionId, videoUrl, initialMessages = null }) {
           onMouseEnter={e => { if (!isAsking) e.currentTarget.style.boxShadow = '0 0 20px var(--neon-cyan)'; }}
           onMouseLeave={e => e.currentTarget.style.boxShadow = 'none'}
         >
-          <Send size={15} color="var(--dark-0)" />
+          <Send size={15} color="white" />
         </button>
       </div>
     </div>
@@ -849,7 +849,7 @@ function Analyzer({ onChatsChange, loadedChat = null, onLoadedChatChange = null,
         <div style={{ textAlign: 'center', marginBottom: 40 }}>
           <p className="section-label" style={{ marginBottom: 12 }}>◆ ANALYZE ◆</p>
           <h2 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 'clamp(22px,3.5vw,36px)',
-            color: 'white', letterSpacing: '0.06em', margin: '0 0 10px' }}>
+            color: 'var(--text-bright)', letterSpacing: '0.06em', margin: '0 0 10px' }}>
             INPUT TARGET URL
           </h2>
           <p style={{ fontFamily: 'var(--font-body)', color: 'var(--text-dim)', fontSize: 14, letterSpacing: '0.05em' }}>
@@ -1005,7 +1005,7 @@ function About() {
         <div style={{ textAlign: 'center', marginBottom: 48 }}>
           <p className="section-label" style={{ marginBottom: 12 }}>◆ ABOUT ◆</p>
           <h2 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 'clamp(22px,3.5vw,36px)',
-            color: 'white', letterSpacing: '0.06em' }}>BUILT WITH MODERN AI TOOLING</h2>
+            color: 'var(--text-bright)', letterSpacing: '0.06em' }}>BUILT WITH MODERN AI TOOLING</h2>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
@@ -1163,7 +1163,7 @@ function HistorySidebar({ open, onClose, chats, onChatsChange, onChatSelect }) {
                   <input autoFocus value={renameValue} onChange={e => setRenameValue(e.target.value)}
                     onKeyDown={e => { if (e.key === 'Enter') saveRename(session.id); if (e.key === 'Escape') setRenamingId(null); }}
                     style={{ flex: 1, background: 'transparent', border: 'none', borderBottom: '1px solid var(--neon-cyan)',
-                      color: 'white', fontSize: 13, outline: 'none', fontFamily: 'var(--font-mono)', padding: '0 0 2px' }}
+                      color: 'var(--text-bright)', fontSize: 13, outline: 'none', fontFamily: 'var(--font-mono)', padding: '0 0 2px' }}
                   />
                 ) : (
                   <span style={{ flex: 1, fontFamily: 'var(--font-body)', color: 'var(--text-white)', fontSize: 13,
@@ -1435,7 +1435,7 @@ export default function App() {
   );
 
   return (
-    <div className="scanlines" style={{ background: 'var(--dark-0)', minHeight: '100vh', color: 'white', overflowX: 'hidden' }}>
+    <div className="scanlines" style={{ background: 'var(--dark-0)', minHeight: '100vh', color: 'var(--text-bright)', overflowX: 'hidden' }}>
       <style>{GLOBAL_CSS}</style>
       <Navbar
         onHistoryClick={() => setShowHistory(true)}
