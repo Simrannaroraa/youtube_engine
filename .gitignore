@@ -34,6 +34,5 @@ frontend/.env.*
 
 # Logs
 *.log
-.vevv
 .venv
 .venv/
